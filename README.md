@@ -4,10 +4,22 @@
 
 通知关闭时不会请求行情。周末、法定节假日、午休和收盘后到期的规则会跳过，不补发。
 
+## 服务器一键安装
+
+在 Linux 交互式终端执行：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Linjiahao666/fundmon/main/install.sh | bash
+```
+
+脚本会引导你选择安装目录、拉取仓库、安装 Python 依赖、填写飞书凭证，并注册为开机自启服务。需要本机已能访问 GitHub，以及 Python 3.11 或更高版本。
+
 ## 准备
 
 - Python 3.11 及以上
 - 飞书企业自建应用，并开通机器人
+
+本机手动安装：
 
 ```bash
 python -m venv .venv
