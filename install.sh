@@ -80,10 +80,42 @@ install_packages() {
   fi
 }
 
+python_has_venv() {
+  "$1" -c 'import venv, ensurepip' 2>/dev/null
+}
+
 pick_python() {
   local candidate
   for candidate in python3.14 python3.13 python3.12 python3.11 python3; do
     if need_cmd "$candidate" && "$candidate" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then
+      if python_has_venv "$candidate"; then
+        PYTHON="$candidate"
+        return 0
+      fi
+    fi
+  done
+  return 1
+}
+
+ensure_python() {
+  if pick_python; then
+    return 0
+  fi
+  local candidate pkg
+  for candidate in python3.14 python3.13 python3.12 python3.11 python3; do
+    if ! need_cmd "$candidate"; then
+      continue
+    fi
+    if ! "$candidate" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then
+      continue
+    fi
+    pkg="$("$candidate" -c 'import sys; print("python%d.%d-venv" % (sys.version_info.major, sys.version_info.minor))')"
+    if need_cmd apt-get; then
+      install_packages "$pkg"
+    elif need_cmd dnf; then
+      install_packages python3-pip
+    fi
+    if python_has_venv "$candidate"; then
       PYTHON="$candidate"
       return 0
     fi
@@ -170,27 +202,13 @@ fi
 missing=()
 need_cmd git || missing+=(git)
 need_cmd curl || missing+=(curl)
-if ! pick_python; then
-  if need_cmd apt-get; then
-    missing+=(python3 python3-venv python3-pip)
-  else
-    missing+=(python3)
-  fi
-fi
 if ((${#missing[@]})); then
   install_packages "${missing[@]}"
 fi
-if ! pick_python; then
-  echo "未找到 Python 3.11 或更高版本。请先安装后再执行本脚本。"
+if ! ensure_python; then
+  echo "未找到可用的 Python 3.11 或更高版本，或缺少 venv 组件。"
+  echo "Debian 或 Ubuntu 可先执行：apt install python3.12-venv 或 apt install python3.14-venv"
   exit 1
-fi
-if ! "$PYTHON" -m venv --help >/dev/null 2>&1; then
-  if need_cmd apt-get; then
-    install_packages python3-venv
-  else
-    echo "当前 Python 无法创建虚拟环境，请先安装 python3-venv。"
-    exit 1
-  fi
 fi
 
 if [[ -d /www/wwwroot ]]; then
@@ -222,7 +240,8 @@ else
 fi
 
 cd "$INSTALL_DIR"
-say "正在创建虚拟环境并安装依赖。"
+say "正在创建虚拟环境并安装依赖，使用 $($PYTHON --version 2>&1)。"
+rm -rf .venv
 "$PYTHON" -m venv .venv
 # shellcheck disable=SC1091
 source .venv/bin/activate
